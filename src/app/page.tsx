@@ -5,7 +5,17 @@ import ReactMarkdown from 'react-markdown';
 // 金色硬币SVG组件，支持正反面
 const CoinSVG = ({ side, flipping, duration }: { side: 0 | 1, flipping: boolean, duration: number }) => (
   <div className="w-24 h-24 flex items-center justify-center coin3d">
-    <div className={`w-full h-full coin-inner${flipping ? ' flipping' : ''}`} style={{ transition: `transform ${duration}ms cubic-bezier(.4,2,.6,1)` }}> 
+    <div
+      className={`w-full h-full coin-inner${flipping ? ' flipping' : ''}`}
+      style={{
+        transition: flipping
+          ? `transform ${duration}ms cubic-bezier(.4,1.8,.6,1)`
+          : 'transform 0.3s',
+        transform: flipping
+          ? 'translateY(-60px) rotateX(1440deg)'
+          : 'translateY(0) rotateX(0deg)'
+      }}
+    >
       {side === 1 ? (
         <svg width="100%" height="100%" viewBox="0 0 120 120" fill="none">
           <defs>
@@ -54,6 +64,46 @@ const AI_FREE_PROMPT = '你是一位风趣、专业、善于启发思考的国�
 
 const WELCOME_MSG = '小友，你好！现在可以告诉我具体想咨询哪方面的问题？比如事业、感情、投资或其他？问题可以具体一些。';
 
+// SVG大师快跑LOGO组件
+const MasterRunLogo = () => (
+  <svg width="320" height="100" viewBox="0 0 320 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* 卡通光头道士，手捧百科词典 */}
+    <g>
+      {/* 身体（道袍） */}
+      <ellipse cx="60" cy="70" rx="20" ry="25" fill="#f5e7c0" stroke="#bfa140" strokeWidth="2" />
+      {/* 头部（光头） */}
+      <ellipse cx="60" cy="40" rx="14" ry="14" fill="#fffbe6" stroke="#bfa140" strokeWidth="2" />
+      {/* 耳朵 */}
+      <ellipse cx="46" cy="42" rx="2.5" ry="4" fill="#fffbe6" stroke="#bfa140" strokeWidth="1" />
+      <ellipse cx="74" cy="42" rx="2.5" ry="4" fill="#fffbe6" stroke="#bfa140" strokeWidth="1" />
+      {/* 眉毛 */}
+      <path d="M54 36 Q57 34 60 36" stroke="#bfa140" strokeWidth="1.5" fill="none" />
+      <path d="M66 36 Q69 34 72 36" stroke="#bfa140" strokeWidth="1.5" fill="none" />
+      {/* 眼睛 */}
+      <ellipse cx="56.5" cy="43" rx="1.2" ry="2" fill="#bfa140" />
+      <ellipse cx="63.5" cy="43" rx="1.2" ry="2" fill="#bfa140" />
+      {/* 嘴巴微笑 */}
+      <path d="M57 48 Q60 51 63 48" stroke="#bfa140" strokeWidth="1.5" fill="none" />
+      {/* 胡须 */}
+      <path d="M54 52 Q60 58 66 52" stroke="#bfa140" strokeWidth="2" fill="none" />
+      {/* 手臂捧书 */}
+      <path d="M50 70 Q45 65 55 60" stroke="#bfa140" strokeWidth="3" fill="none" />
+      <path d="M70 70 Q75 65 65 60" stroke="#bfa140" strokeWidth="3" fill="none" />
+      {/* 书本 */}
+      <rect x="54" y="60" width="12" height="10" rx="2" fill="#fff" stroke="#bfa140" strokeWidth="1.5" />
+      <line x1="60" y1="60" x2="60" y2="70" stroke="#bfa140" strokeWidth="1" />
+      <text x="60" y="68" fontSize="6" fontWeight="bold" fill="#bfa140" textAnchor="middle">百科</text>
+      {/* 跑步腿 */}
+      <path d="M55 95 Q60 85 65 95" stroke="#bfa140" strokeWidth="3" fill="none" />
+      <path d="M65 95 Q70 90 60 85" stroke="#bfa140" strokeWidth="3" fill="none" />
+    </g>
+    {/* 文字"大师快跑" */}
+    <g>
+      <text x="110" y="65" fontSize="48" fontWeight="bold" fill="#222" stroke="#222" strokeWidth="0.5" fontFamily="Arial, sans-serif" style={{letterSpacing:'0.12em'}}>大师快跑</text>
+    </g>
+  </svg>
+);
+
 const Home = () => {
   const [location, setLocation] = useState('');
   const [time, setTime] = useState('');
@@ -63,8 +113,8 @@ const Home = () => {
   // 动画相关：每枚硬币的当前面、目标面、翻转角度
   const [coinSides, setCoinSides] = useState<(0|1)[]>(Array(COIN_NUM).fill(1));
   const [flipping, setFlipping] = useState(false);
+  const [flipDuration, setFlipDuration] = useState(1200);
   const [isFlipping, setIsFlipping] = useState(false);
-  const [flipDuration, setFlipDuration] = useState(2000);
   const [messages, setMessages] = useState<{ text: string, sender: string }[]>([{ text: WELCOME_MSG, sender: 'AI' }]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -74,6 +124,7 @@ const Home = () => {
   const chatRef = useRef<HTMLDivElement>(null);
   const [pendingLocation, setPendingLocation] = useState(false); // 新增：等待用户输入地区
   const [freeChatCount, setFreeChatCount] = useState(0); // 新增：自由对话轮次
+  const [usage, setUsage] = useState('');
 
   useEffect(() => {
     fetch('https://ipapi.co/json/')
@@ -91,11 +142,16 @@ const Home = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // 最简单的抛硬币动画方案（动画时长2-4秒随机，动画结束立即切换结果）
+  // 读取使用说明
+  useEffect(() => {
+    fetch('/usage.txt').then(res => res.text()).then(setUsage);
+  }, []);
+
+  // 参考billbiu弹跳+旋转动画
   const tossCoin = () => {
     if (isFlipping || coinResults.length >= TOSS_TOTAL) return;
     setIsFlipping(true);
-    const duration = Math.floor(2000 + Math.random() * 2000);
+    const duration = Math.floor(1000 + Math.random() * 1000); // 1-2秒
     setFlipDuration(duration);
     setFlipping(true);
     const results: (0|1)[] = Array(COIN_NUM).fill(0).map(() => (Math.random() < 0.5 ? 1 : 0));
@@ -210,13 +266,24 @@ const Home = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#f5f5f7]">
       <div className="w-full max-w-md bg-white/80 rounded-3xl shadow-xl p-8 mt-16 flex flex-col items-center">
-        <h1 className="text-4xl font-bold text-gray-900 mb-2 tracking-tight" style={{letterSpacing: '-0.03em'}}>大师快跑</h1>
+        {/* LOGO图片替换原文字标题 */}
+        <div className="mb-2"><MasterRunLogo /></div>
         <div className="text-gray-500 mb-6 text-center">
           <div>当前地区：<span className="font-semibold text-gray-700">{location || '获取中...'}</span></div>
           <div>当前时间：<span className="font-semibold text-gray-700">{time}</span></div>
         </div>
+        {/* 使用说明文本框 */}
+        <div className="w-full mb-10">
+          <textarea
+            value={usage}
+            readOnly
+            rows={6}
+            className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-gray-700 text-sm resize-none focus:outline-none"
+            style={{ minHeight: '7em', maxHeight: '12em' }}
+          />
+        </div>
         {/* 3枚硬币动画展示 */}
-        <div className="flex flex-col items-center mb-6">
+        <div className="flex flex-col items-center mb-6" style={{marginTop: '1.5rem'}}>
           <div className="flex gap-4 mb-2">
             {Array(COIN_NUM).fill(0).map((_, i) => (
               <CoinSVG key={i} side={coinSides[i]} flipping={flipping} duration={flipDuration} />
@@ -278,10 +345,7 @@ const Home = () => {
           perspective: 600px;
         }
         .coin-inner {
-          transform: rotateX(0deg);
-        }
-        .coin-inner.flipping {
-          transform: rotateX(720deg);
+          will-change: transform;
         }
       `}</style>
     </div>
