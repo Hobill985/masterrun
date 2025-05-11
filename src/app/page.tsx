@@ -118,9 +118,6 @@ const Home = () => {
   const [messages, setMessages] = useState<{ text: string, sender: string }[]>([{ text: WELCOME_MSG, sender: 'AI' }]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const animRef = useRef<number | null>(null);
-  const [dummy, setDummy] = useState(0); // 强制刷新用
-  const angleRefs = useRef<number[]>(Array(COIN_NUM).fill(0));
   const chatRef = useRef<HTMLDivElement>(null);
   const [pendingLocation, setPendingLocation] = useState(false); // 新增：等待用户输入地区
   const [freeChatCount, setFreeChatCount] = useState(0); // 新增：自由对话轮次
