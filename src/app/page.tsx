@@ -50,6 +50,7 @@ const TOSS_TOTAL = 6;
 
 const AI_SYSTEM_PROMPT =
   '你是一位精通六爻预测的国学大师，兼通人生哲理与西方决策科学。你的风格专业、简明，偶尔点到为止地风趣幽默，但绝不话痨。你的主要任务是根据用户的首次抛硬币时间、地区和六次抛硬币（正/反）结果，结合六爻原理，为用户推理卦象，给出专业分析、结论和建议，帮助用户决策。请用通俗易懂、简明有力的语言与用户交流。\n【补充说明】摇卦是采用3枚2012年的中国5角硬币进行的，摇卦记录的结果是代表每次出现图案一面的硬币个数。\n【输出结构】请将分析内容分为以下六个部分：1.卦象解析（本卦、变卦、时间背景）；2.关键爻像分析；3.应期判断；4.具体建议；5.决策科学（结合决策科学、心理学、职业生涯、管理学、历史学等综合学科）；6.总结（用一句幽默或发人深省的话）。\n【输出格式要求】每一部分的标题请用"**【标题】**"的Markdown格式（如：**【卦象解析】**）。每一部分内容后请空一行，确保分隔清晰。内容可用有序列表、分段等方式，确保结构清晰、易于阅读。最后，请用一句话主动询问用户的想法或是否有进一步的问题，以促进互动。';
+const AI_FREE_PROMPT = '你是一位风趣、专业、善于启发思考的国学大师，可以和用户自由交流六爻、人生、决策等话题。请像真人一样自然、口语化地与用户对话，无需结构化格式，针对用户的问题给出真诚、贴近生活的建议或看法。';
 
 const WELCOME_MSG = '小友，你好！现在可以告诉我具体想咨询哪方面的问题？比如事业、感情、投资或其他？问题可以具体一些。';
 
@@ -72,6 +73,7 @@ const Home = () => {
   const angleRefs = useRef<number[]>(Array(COIN_NUM).fill(0));
   const chatRef = useRef<HTMLDivElement>(null);
   const [pendingLocation, setPendingLocation] = useState(false); // 新增：等待用户输入地区
+  const [freeChatCount, setFreeChatCount] = useState(0); // 新增：自由对话轮次
 
   useEffect(() => {
     fetch('https://ipapi.co/json/')
@@ -118,7 +120,7 @@ const Home = () => {
     }
   }, [messages, loading]);
 
-  // 聊天发送逻辑：首次用户提问时，若无地区，AI先问地区，用户回复后再分析
+  // 聊天发送逻辑：首次分析后进入自由对话，最多10轮
   const handleSendMessage = async () => {
     if (inputMessage.trim() === '') return;
     // 如果等待用户输入地区
@@ -142,6 +144,7 @@ const Home = () => {
       });
       const data = await response.json();
       setMessages(msgs => [...msgs, { text: data.reply, sender: 'AI' }]);
+      setFreeChatCount(1); // 进入自由对话第一轮
       setLoading(false);
       return;
     }
@@ -157,24 +160,50 @@ const Home = () => {
       setLoading(false);
       return;
     }
-    // 有地区，正常分析
-    const guaInfo = `地区：${location}\n时间：${firstTossTime || '未知'}\n摇卦结果：${coinResults.map(arr => countStar(arr)).join('，')}`;
-    const userContent = messages.length === 1
-      ? `我的问题：${inputMessage}\n卦象信息：${guaInfo}`
-      : inputMessage;
+    // 首次分析
+    if (freeChatCount === 0) {
+      const guaInfo = `地区：${location}\n时间：${firstTossTime || '未知'}\n摇卦结果：${coinResults.map(arr => countStar(arr)).join('，')}`;
+      const userContent = messages.length === 1
+        ? `我的问题：${inputMessage}\n卦象信息：${guaInfo}`
+        : inputMessage;
+      const response = await fetch('/api/deepseek', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: AI_SYSTEM_PROMPT },
+            { role: 'user', content: userContent },
+            ...messages.slice(1).map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }))
+          ]
+        })
+      });
+      const data = await response.json();
+      setMessages([...newMessages, { text: data.reply, sender: 'AI' }]);
+      setFreeChatCount(1);
+      setLoading(false);
+      return;
+    }
+    // 自由对话，最多10轮
+    if (freeChatCount >= 10) {
+      setMessages(msgs => [...msgs, { text: '本轮自由对话已达10次，如需继续请重新提问或刷新页面。', sender: 'AI' }]);
+      setLoading(false);
+      return;
+    }
+    // 自由对话请求
     const response = await fetch('/api/deepseek', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messages: [
-          { role: 'system', content: AI_SYSTEM_PROMPT },
-          { role: 'user', content: userContent },
-          ...messages.slice(1).map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }))
+          { role: 'system', content: AI_FREE_PROMPT },
+          ...messages.slice(1).map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text })),
+          { role: 'user', content: inputMessage }
         ]
       })
     });
     const data = await response.json();
     setMessages([...newMessages, { text: data.reply, sender: 'AI' }]);
+    setFreeChatCount(c => c + 1);
     setLoading(false);
   };
 
