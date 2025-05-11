@@ -1,59 +1,77 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 
-// 金色硬币SVG组件，背面为五角星
-const CoinSVG = ({ side, flipping }: { side: 0 | 1, flipping: boolean }) => (
-  <div className="w-32 h-32 flex items-center justify-center">
-    <svg
-      className={`transition-transform duration-[2000ms] ${flipping ? 'animate-flip' : ''}`}
-      style={{ transform: flipping ? 'rotateX(720deg)' : 'rotateX(0deg)' }}
-      width="120" height="120" viewBox="0 0 120 120" fill="none"
-    >
-      {/* 金色边框和渐变 */}
-      <defs>
-        <radialGradient id="gold" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#fffbe6" />
-          <stop offset="60%" stopColor="#ffd700" />
-          <stop offset="100%" stopColor="#bfa140" />
-        </radialGradient>
-        <radialGradient id="shine" cx="50%" cy="30%" r="60%">
-          <stop offset="0%" stopColor="#fff" stopOpacity="0.7" />
-          <stop offset="100%" stopColor="#ffd700" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <circle cx="60" cy="60" r="56" fill="url(#gold)" stroke="#bfa140" strokeWidth="8" />
-      <circle cx="60" cy="60" r="48" fill="url(#shine)" />
+// 金色硬币SVG组件，支持正反面
+const CoinSVG = ({ side, flipping, duration }: { side: 0 | 1, flipping: boolean, duration: number }) => (
+  <div className="w-24 h-24 flex items-center justify-center coin3d">
+    <div className={`w-full h-full coin-inner${flipping ? ' flipping' : ''}`} style={{ transition: `transform ${duration}ms cubic-bezier(.4,2,.6,1)` }}> 
       {side === 1 ? (
-        // 正面：数字5
-        <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central" fontSize="64" fontWeight="bold" fill="#bfa140" style={{filter:'drop-shadow(0 2px 2px #fffbe6)'}}>5</text>
+        <svg width="100%" height="100%" viewBox="0 0 120 120" fill="none">
+          <defs>
+            <radialGradient id="gold" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#fffbe6" />
+              <stop offset="60%" stopColor="#ffd700" />
+              <stop offset="100%" stopColor="#bfa140" />
+            </radialGradient>
+            <radialGradient id="shine" cx="50%" cy="30%" r="60%">
+              <stop offset="0%" stopColor="#fff" stopOpacity="0.7" />
+              <stop offset="100%" stopColor="#ffd700" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <circle cx="60" cy="60" r="56" fill="url(#gold)" stroke="#bfa140" strokeWidth="8" />
+          <circle cx="60" cy="60" r="48" fill="url(#shine)" />
+          <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central" fontSize="64" fontWeight="bold" fill="#bfa140" style={{filter:'drop-shadow(0 2px 2px #fffbe6)'}}>5</text>
+        </svg>
       ) : (
-        // 背面：五角星
-        <polygon
-          points="60,35 68,58 93,58 72,72 80,95 60,80 40,95 48,72 27,58 52,58"
-          fill="#fffbe6"
-          stroke="#ffd700"
-          strokeWidth="3"
-          style={{filter:'drop-shadow(0 2px 2px #ffd700)'}}
-        />
+        <svg width="100%" height="100%" viewBox="0 0 120 120" fill="none">
+          <defs>
+            <radialGradient id="gold" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#fffbe6" />
+              <stop offset="60%" stopColor="#ffd700" />
+              <stop offset="100%" stopColor="#bfa140" />
+            </radialGradient>
+            <radialGradient id="shine" cx="50%" cy="30%" r="60%">
+              <stop offset="0%" stopColor="#fff" stopOpacity="0.7" />
+              <stop offset="100%" stopColor="#ffd700" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <circle cx="60" cy="60" r="56" fill="url(#gold)" stroke="#bfa140" strokeWidth="8" />
+          <circle cx="60" cy="60" r="48" fill="url(#shine)" />
+          <polygon points="60,35 68,58 93,58 72,72 80,95 60,80 40,95 48,72 27,58 52,58" fill="#fffbe6" stroke="#ffd700" strokeWidth="3" style={{filter:'drop-shadow(0 2px 2px #ffd700)'}} />
+        </svg>
       )}
-    </svg>
+    </div>
   </div>
 );
 
+const COIN_NUM = 3;
+const TOSS_TOTAL = 6;
+
 const AI_SYSTEM_PROMPT =
-  '你是一位精通六爻预测的国学大师，兼通人生哲理与西方决策科学。你的风格专业、简明，偶尔点到为止地风趣幽默，但绝不话痨。你的主要任务是根据用户的首次抛硬币时间、地区和六次抛硬币（正/反）结果，结合六爻原理，为用户推理卦象，给出专业分析、结论和建议，帮助用户决策。请用通俗易懂、简明有力的语言与用户交流。';
+  '你是一位精通六爻预测的国学大师，兼通人生哲理与西方决策科学。你的风格专业、简明，偶尔点到为止地风趣幽默，但绝不话痨。你的主要任务是根据用户的首次抛硬币时间、地区和六次抛硬币（正/反）结果，结合六爻原理，为用户推理卦象，给出专业分析、结论和建议，帮助用户决策。请用通俗易懂、简明有力的语言与用户交流。\n【补充说明】摇卦是采用3枚2012年的中国5角硬币进行的，摇卦记录的结果是代表每次出现图案一面的硬币个数。\n【输出结构】请将分析内容分为以下六个部分：1.卦象解析（本卦、变卦、时间背景）；2.关键爻像分析；3.应期判断；4.具体建议；5.决策科学（结合决策科学、心理学、职业生涯、管理学、历史学等综合学科）；6.总结（用一句幽默或发人深省的话）。\n【输出格式要求】每一部分的标题请用"**【标题】**"的Markdown格式（如：**【卦象解析】**）。每一部分之间请空一行。内容可用有序列表、分段等方式，确保结构清晰、易于阅读。';
+
+const WELCOME_MSG = '小友，你好！现在可以告诉我具体想咨询哪方面的问题？比如事业、感情、投资或其他？问题可以具体一些。';
 
 const Home = () => {
   const [location, setLocation] = useState('');
   const [time, setTime] = useState('');
-  const [coinResults, setCoinResults] = useState<number[]>([]);
+  // 记录每次抛硬币3枚的结果（每次为[0|1,0|1,0|1]）
+  const [coinResults, setCoinResults] = useState<number[][]>([]);
   const [firstTossTime, setFirstTossTime] = useState<string | null>(null);
+  // 动画相关：每枚硬币的当前面、目标面、翻转角度
+  const [coinSides, setCoinSides] = useState<(0|1)[]>(Array(COIN_NUM).fill(1));
+  const [flipping, setFlipping] = useState(false);
   const [isFlipping, setIsFlipping] = useState(false);
-  const [flippingSide, setFlippingSide] = useState<0 | 1>(1);
-  const [messages, setMessages] = useState<{ text: string, sender: string }[]>([]);
+  const [flipDuration, setFlipDuration] = useState(2000);
+  const [messages, setMessages] = useState<{ text: string, sender: string }[]>([{ text: WELCOME_MSG, sender: 'AI' }]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const animRef = useRef<number | null>(null);
+  const [dummy, setDummy] = useState(0); // 强制刷新用
+  const angleRefs = useRef<number[]>(Array(COIN_NUM).fill(0));
+  const chatRef = useRef<HTMLDivElement>(null);
+  const [pendingLocation, setPendingLocation] = useState(false); // 新增：等待用户输入地区
 
   useEffect(() => {
     fetch('https://ipapi.co/json/')
@@ -71,60 +89,87 @@ const Home = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // 新增：对话区首次自动发起AI开场白
+  // 最简单的抛硬币动画方案（动画时长2-4秒随机，动画结束立即切换结果）
+  const tossCoin = () => {
+    if (isFlipping || coinResults.length >= TOSS_TOTAL) return;
+    setIsFlipping(true);
+    const duration = Math.floor(2000 + Math.random() * 2000);
+    setFlipDuration(duration);
+    setFlipping(true);
+    const results: (0|1)[] = Array(COIN_NUM).fill(0).map(() => (Math.random() < 0.5 ? 1 : 0));
+    setTimeout(() => {
+      setCoinSides(results);
+      setFlipping(false);
+      setCoinResults(r => [...r, results]);
+      if (coinResults.length === 0) {
+        setFirstTossTime(new Date().toLocaleTimeString());
+      }
+      setIsFlipping(false);
+    }, duration);
+  };
+
+  // 统计每次图案（五角星）数量
+  const countStar = (arr: number[]) => arr.filter(x => x === 0).length;
+
+  // 聊天内容自动滚动到底部
   useEffect(() => {
-    if (coinResults.length === 6 && messages.length === 0) {
-      const guaInfo = `\n地区：${location || '未知'}\n时间：${firstTossTime || '未知'}\n摇卦结果：${coinResults.map(n => n === 1 ? '正' : '反').join('，')}`;
+    if (chatRef.current) {
+      chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    }
+  }, [messages, loading]);
+
+  // 聊天发送逻辑：首次用户提问时，若无地区，AI先问地区，用户回复后再分析
+  const handleSendMessage = async () => {
+    if (inputMessage.trim() === '') return;
+    // 如果等待用户输入地区
+    if (pendingLocation) {
+      setMessages([...messages, { text: inputMessage, sender: 'user' }]);
+      setPendingLocation(false);
       setLoading(true);
-      fetch('/api/deepseek', {
+      // 用户回复地区后，正式分析
+      const guaInfo = `地区：${inputMessage}\n时间：${firstTossTime || '未知'}\n摇卦结果：${coinResults.map(arr => countStar(arr)).join('，')}`;
+      const userContent = `我的问题：${messages[messages.length-2]?.text || ''}\n卦象信息：${guaInfo}`;
+      const response = await fetch('/api/deepseek', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [
             { role: 'system', content: AI_SYSTEM_PROMPT },
-            { role: 'user', content: `请根据以下信息为我起卦，并主动问我想问什么：\n${guaInfo}` }
+            { role: 'user', content: userContent },
+            ...messages.slice(1,-1).map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }))
           ]
         })
-      })
-        .then(res => res.json())
-        .then(data => {
-          setMessages([{ text: data.reply, sender: 'AI' }]);
-        })
-        .finally(() => setLoading(false));
+      });
+      const data = await response.json();
+      setMessages(msgs => [...msgs, { text: data.reply, sender: 'AI' }]);
+      setLoading(false);
+      return;
     }
-  }, [coinResults, messages.length, location, firstTossTime]);
-
-  // 抛硬币动画
-  const tossCoin = () => {
-    if (isFlipping || coinResults.length >= 6) return;
-    setIsFlipping(true);
-    const result = Math.random() < 0.5 ? 1 : 0;
-    setFlippingSide(result);
-    if (coinResults.length === 0) {
-      setFirstTossTime(new Date().toLocaleTimeString());
-    }
-    setTimeout(() => {
-      setCoinResults([...coinResults, result]);
-      setIsFlipping(false);
-    }, Math.random() * 2000 + 2000);
-  };
-
-  // 聊天
-  const handleSendMessage = async () => {
-    if (inputMessage.trim() === '') return;
+    // 正常流程
     const newMessages = [...messages, { text: inputMessage, sender: 'user' }];
     setMessages(newMessages);
     setInputMessage('');
     setLoading(true);
-    const guaInfo = `地区：${location || '未知'}\n时间：${firstTossTime || '未知'}\n摇卦结果：${coinResults.map(n => n === 1 ? '正' : '反').join('，')}`;
+    // 如果没有地区，AI先问地区
+    if (!location) {
+      setPendingLocation(true);
+      setMessages(msgs => [...msgs, { text: '请告诉我你现在的城市或地区，我才能为你更准确地分析。', sender: 'AI' }]);
+      setLoading(false);
+      return;
+    }
+    // 有地区，正常分析
+    const guaInfo = `地区：${location}\n时间：${firstTossTime || '未知'}\n摇卦结果：${coinResults.map(arr => countStar(arr)).join('，')}`;
+    const userContent = messages.length === 1
+      ? `我的问题：${inputMessage}\n卦象信息：${guaInfo}`
+      : inputMessage;
     const response = await fetch('/api/deepseek', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messages: [
           { role: 'system', content: AI_SYSTEM_PROMPT },
-          { role: 'user', content: `卦象信息：${guaInfo}` },
-          ...newMessages.map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }))
+          { role: 'user', content: userContent },
+          ...messages.slice(1).map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }))
         ]
       })
     });
@@ -132,9 +177,6 @@ const Home = () => {
     setMessages([...newMessages, { text: data.reply, sender: 'AI' }]);
     setLoading(false);
   };
-
-  // 结果转"正/反"
-  const resultText = (n: number) => n === 1 ? '正' : '反';
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#f5f5f7]">
@@ -144,25 +186,30 @@ const Home = () => {
           <div>当前地区：<span className="font-semibold text-gray-700">{location || '获取中...'}</span></div>
           <div>当前时间：<span className="font-semibold text-gray-700">{time}</span></div>
         </div>
+        {/* 3枚硬币动画展示 */}
         <div className="flex flex-col items-center mb-6">
-          <CoinSVG side={coinResults.length === 0 ? 1 : flippingSide} flipping={isFlipping} />
+          <div className="flex gap-4 mb-2">
+            {Array(COIN_NUM).fill(0).map((_, i) => (
+              <CoinSVG key={i} side={coinSides[i]} flipping={flipping} duration={flipDuration} />
+            ))}
+          </div>
           <button
             className="mt-2 px-8 py-2 bg-gradient-to-r from-yellow-400 to-yellow-600 text-white text-lg rounded-full shadow-md hover:shadow-lg transition-all font-semibold disabled:opacity-50"
             onClick={tossCoin}
-            disabled={isFlipping || coinResults.length >= 6}
+            disabled={isFlipping || coinResults.length >= TOSS_TOTAL}
           >
-            {coinResults.length < 6 ? '抛硬币' : '已完成'}
+            {coinResults.length < TOSS_TOTAL ? '抛硬币' : '已完成'}
           </button>
         </div>
         <div className="w-full text-center text-gray-600 mb-2">
           <div>首次抛硬币时间：<span className="font-semibold">{firstTossTime || '未开始'}</span></div>
-          <div>抛硬币结果：<span className="font-semibold">{coinResults.length ? coinResults.map(resultText).join('，') : '暂无'}</span></div>
+          <div>每次图案出现数量：<span className="font-semibold">{coinResults.length ? coinResults.map(arr => countStar(arr)).join('，') : '暂无'}</span></div>
         </div>
         {/* 问题推理界面 */}
         {coinResults.length === 6 && (
           <div className="w-full mt-6">
             <h2 className="text-xl font-bold text-gray-800 mb-2">问题推理</h2>
-            <div className="bg-gray-100 rounded-xl p-4 h-56 overflow-y-auto mb-2 flex flex-col gap-2">
+            <div ref={chatRef} className="bg-gray-100 rounded-xl p-4 h-96 overflow-y-auto mb-2 flex flex-col gap-2">
               {messages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`px-4 py-2 rounded-2xl max-w-[80%] text-base ${msg.sender === 'user' ? 'bg-blue-500 text-white' : 'bg-white text-gray-800 border border-gray-200'}`}>
@@ -196,14 +243,15 @@ const Home = () => {
           </div>
         )}
       </div>
-      {/* 动画样式 */}
       <style jsx global>{`
-        @keyframes flip {
-          0% { transform: rotateX(0deg); }
-          100% { transform: rotateX(720deg); }
+        .coin3d {
+          perspective: 600px;
         }
-        .animate-flip {
-          animation: flip 2s cubic-bezier(.4,2,.6,1) forwards;
+        .coin-inner {
+          transform: rotateX(0deg);
+        }
+        .coin-inner.flipping {
+          transform: rotateX(720deg);
         }
       `}</style>
     </div>
