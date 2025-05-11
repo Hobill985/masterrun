@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 // 金色硬币SVG组件，背面为五角星
 const CoinSVG = ({ side, flipping }: { side: 0 | 1, flipping: boolean }) => (
@@ -40,6 +41,9 @@ const CoinSVG = ({ side, flipping }: { side: 0 | 1, flipping: boolean }) => (
   </div>
 );
 
+const AI_SYSTEM_PROMPT =
+  '你是一位精通六爻预测的国学大师，兼通人生哲理与西方决策科学。你的风格专业、简明，偶尔点到为止地风趣幽默，但绝不话痨。你的主要任务是根据用户的首次抛硬币时间、地区和六次抛硬币（正/反）结果，结合六爻原理，为用户推理卦象，给出专业分析、结论和建议，帮助用户决策。请用通俗易懂、简明有力的语言与用户交流。';
+
 const Home = () => {
   const [location, setLocation] = useState('');
   const [time, setTime] = useState('');
@@ -49,6 +53,7 @@ const Home = () => {
   const [flippingSide, setFlippingSide] = useState<0 | 1>(1);
   const [messages, setMessages] = useState<{ text: string, sender: string }[]>([]);
   const [inputMessage, setInputMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetch('https://ipapi.co/json/')
@@ -65,6 +70,29 @@ const Home = () => {
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // 新增：对话区首次自动发起AI开场白
+  useEffect(() => {
+    if (coinResults.length === 6 && messages.length === 0) {
+      const guaInfo = `\n地区：${location || '未知'}\n时间：${firstTossTime || '未知'}\n摇卦结果：${coinResults.map(n => n === 1 ? '正' : '反').join('，')}`;
+      setLoading(true);
+      fetch('/api/deepseek', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: AI_SYSTEM_PROMPT },
+            { role: 'user', content: `请根据以下信息为我起卦，并主动问我想问什么：\n${guaInfo}` }
+          ]
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          setMessages([{ text: data.reply, sender: 'AI' }]);
+        })
+        .finally(() => setLoading(false));
+    }
+  }, [coinResults, messages.length, location, firstTossTime]);
 
   // 抛硬币动画
   const tossCoin = () => {
@@ -84,20 +112,25 @@ const Home = () => {
   // 聊天
   const handleSendMessage = async () => {
     if (inputMessage.trim() === '') return;
-    setMessages([...messages, { text: inputMessage, sender: 'user' }]);
+    const newMessages = [...messages, { text: inputMessage, sender: 'user' }];
+    setMessages(newMessages);
     setInputMessage('');
-    // AI回复
+    setLoading(true);
+    const guaInfo = `地区：${location || '未知'}\n时间：${firstTossTime || '未知'}\n摇卦结果：${coinResults.map(n => n === 1 ? '正' : '反').join('，')}`;
     const response = await fetch('/api/deepseek', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: [
-        { role: 'system', content: 'You are a helpful assistant.' },
-        ...messages.map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text })),
-        { role: 'user', content: inputMessage },
-      ] })
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: AI_SYSTEM_PROMPT },
+          { role: 'user', content: `卦象信息：${guaInfo}` },
+          ...newMessages.map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }))
+        ]
+      })
     });
     const data = await response.json();
-    setMessages([...messages, { text: inputMessage, sender: 'user' }, { text: data.reply, sender: 'AI' }]);
+    setMessages([...newMessages, { text: data.reply, sender: 'AI' }]);
+    setLoading(false);
   };
 
   // 结果转"正/反"
@@ -132,9 +165,19 @@ const Home = () => {
             <div className="bg-gray-100 rounded-xl p-4 h-56 overflow-y-auto mb-2 flex flex-col gap-2">
               {messages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`px-4 py-2 rounded-2xl max-w-[80%] text-base ${msg.sender === 'user' ? 'bg-blue-500 text-white' : 'bg-white text-gray-800 border border-gray-200'}`}>{msg.text}</div>
+                  <div className={`px-4 py-2 rounded-2xl max-w-[80%] text-base ${msg.sender === 'user' ? 'bg-blue-500 text-white' : 'bg-white text-gray-800 border border-gray-200'}`}>
+                    {msg.sender === 'AI' ? <ReactMarkdown>{msg.text}</ReactMarkdown> : msg.text}
+                  </div>
                 </div>
               ))}
+              {loading && (
+                <div className="flex justify-start">
+                  <div className="px-4 py-2 rounded-2xl bg-white border border-gray-200 flex items-center gap-2">
+                    <svg className="animate-spin h-5 w-5 text-yellow-500" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
+                    <span className="text-gray-500">大师思考中…</span>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <input
@@ -147,6 +190,7 @@ const Home = () => {
               <button
                 className="px-5 py-2 bg-gradient-to-r from-green-400 to-green-600 text-white rounded-full font-semibold shadow-md hover:shadow-lg transition-all"
                 onClick={handleSendMessage}
+                disabled={loading}
               >发送</button>
             </div>
           </div>
