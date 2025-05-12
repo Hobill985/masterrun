@@ -174,6 +174,13 @@ const Home = () => {
     }
   }, [messages, loading]);
 
+  // 新增：对话界面出现时自动滚动到页面底部
+  useEffect(() => {
+    if (!showCoins) {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+  }, [showCoins]);
+
   // 监听 coinResults 长度变化
   useEffect(() => {
     if (coinResults.length >= 6) {
@@ -188,6 +195,8 @@ const Home = () => {
     if (pendingLocation) {
       setMessages([...messages, { text: inputMessage, sender: 'user' }]);
       setPendingLocation(false);
+      setLocation(inputMessage); // 记录用户输入的地区
+      setInputMessage(''); // 清空输入框
       setLoading(true);
       // 用户回复地区后，正式分析
       const guaInfo = `地区：${inputMessage}\n时间：${firstTossTime || '未知'}\n摇卦结果：${coinResults.map(arr => countStar(arr)).join('，')}`;
@@ -214,8 +223,8 @@ const Home = () => {
     setMessages(newMessages);
     setInputMessage('');
     setLoading(true);
-    // 如果没有地区，AI先问地区
-    if (!location) {
+    // 如果没有地区，且不是刚刚询问过，则AI先问地区
+    if (!location && !pendingLocation) {
       setPendingLocation(true);
       setMessages(msgs => [...msgs, { text: '请告诉我你现在的城市或地区，我才能为你更准确地分析。', sender: 'AI' }]);
       setLoading(false);
