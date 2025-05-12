@@ -122,6 +122,7 @@ const Home = () => {
   const [pendingLocation, setPendingLocation] = useState(false); // 新增：等待用户输入地区
   const [freeChatCount, setFreeChatCount] = useState(0); // 新增：自由对话轮次
   const [usage, setUsage] = useState('');
+  const [showCoins, setShowCoins] = useState(true);
 
   useEffect(() => {
     fetch('https://ipapi.co/json/')
@@ -172,6 +173,13 @@ const Home = () => {
       chatRef.current.scrollTop = chatRef.current.scrollHeight;
     }
   }, [messages, loading]);
+
+  // 监听 coinResults 长度变化
+  useEffect(() => {
+    if (coinResults.length >= 6) {
+      setShowCoins(false);
+    }
+  }, [coinResults]);
 
   // 聊天发送逻辑：首次分析后进入自由对话，最多10轮
   const handleSendMessage = async () => {
@@ -279,27 +287,34 @@ const Home = () => {
             style={{ minHeight: '7em', maxHeight: '12em' }}
           />
         </div>
-        {/* 3枚硬币动画展示 */}
-        <div className="flex flex-col items-center mb-6" style={{marginTop: '1.5rem'}}>
-          <div className="flex gap-4 mb-2">
-            {Array(COIN_NUM).fill(0).map((_, i) => (
-              <CoinSVG key={i} side={coinSides[i]} flipping={flipping} duration={flipDuration} />
-            ))}
+        {/* 硬币相关部分（动画、按钮、结果信息） */}
+        {showCoins && (
+          <div className="w-full">
+            {/* 3枚硬币动画展示 */}
+            <div className="flex flex-col items-center mb-6" style={{marginTop: '1.5rem'}}>
+              <div className="flex gap-4 mb-2">
+                {Array(COIN_NUM).fill(0).map((_, i) => (
+                  <CoinSVG key={i} side={coinSides[i]} flipping={flipping} duration={flipDuration} />
+                ))}
+              </div>
+              <button
+                className="mt-2 px-8 py-2 bg-gradient-to-r from-yellow-400 to-yellow-600 text-white text-lg rounded-full shadow-md hover:shadow-lg transition-all font-semibold disabled:opacity-50"
+                onClick={tossCoin}
+                disabled={isFlipping || coinResults.length >= TOSS_TOTAL}
+              >
+                {coinResults.length < TOSS_TOTAL ? '抛硬币' : '已完成'}
+              </button>
+            </div>
+
+            {/* 抛硬币结果信息 */}
+            <div className="w-full text-center text-gray-600 mb-2">
+              <div>首次抛硬币时间：<span className="font-semibold">{firstTossTime || '未开始'}</span></div>
+              <div>每次图案出现数量：<span className="font-semibold">{coinResults.length ? coinResults.map(arr => countStar(arr)).join('，') : '暂无'}</span></div>
+            </div>
           </div>
-          <button
-            className="mt-2 px-8 py-2 bg-gradient-to-r from-yellow-400 to-yellow-600 text-white text-lg rounded-full shadow-md hover:shadow-lg transition-all font-semibold disabled:opacity-50"
-            onClick={tossCoin}
-            disabled={isFlipping || coinResults.length >= TOSS_TOTAL}
-          >
-            {coinResults.length < TOSS_TOTAL ? '抛硬币' : '已完成'}
-          </button>
-        </div>
-        <div className="w-full text-center text-gray-600 mb-2">
-          <div>首次抛硬币时间：<span className="font-semibold">{firstTossTime || '未开始'}</span></div>
-          <div>每次图案出现数量：<span className="font-semibold">{coinResults.length ? coinResults.map(arr => countStar(arr)).join('，') : '暂无'}</span></div>
-        </div>
+        )}
         {/* 问题推理界面 */}
-        {coinResults.length === 6 && (
+        {!showCoins && (
           <div className="w-full mt-6">
             <h2 className="text-xl font-bold text-gray-800 mb-2">问题推理</h2>
             <div ref={chatRef} className="bg-gray-100 rounded-xl p-4 h-96 overflow-y-auto mb-2 flex flex-col gap-2">
